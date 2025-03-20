@@ -1,0 +1,5 @@
+# ignore compiled librories and executables 
+*.out
+*.txt
+lib/
+
