@@ -2,15 +2,17 @@
 #include <array>
 #include <cstddef>
 #include <cstdio>
-#include <iostream>
+// #include <iostream>
 #include <tuple>
 #include <vector>
+
 using namespace std;
 const float WIDTH = 1280;
 const float HEIGHT = 1280;
 int player = 1;
 bool game_won = false;
 enum CellState { Empty, X, O };
+
 class GridCell {
 public:
   GridCell() { state = Empty; };
@@ -55,6 +57,7 @@ public:
   int position_x, position_y;
   CellState state;
 };
+
 array<array<GridCell, 3>, 3> grid;
 void initUpdateCells() {
   float center_x = float(GetScreenWidth()) / 2;
@@ -78,6 +81,7 @@ void initUpdateCells() {
     }
   }
 }
+
 void drawGrid() {
   // drawing the grid for the game
   float center_x = float(GetScreenWidth()) / 2;
@@ -111,6 +115,7 @@ void drawGrid() {
     }
   }
 }
+
 bool checkDraw(array<array<GridCell, 3>, 3> grid) {
   for (auto row : grid) {
     for (GridCell cell : row) {
@@ -122,6 +127,7 @@ bool checkDraw(array<array<GridCell, 3>, 3> grid) {
   printf("its a draw\n");
   return true;
 }
+
 int checkWin(array<array<GridCell, 3>, 3> grid) {
   if (!checkDraw(grid)) {
 
@@ -190,6 +196,7 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
   }
   return 0;
 }
+
 vector<tuple<int, int, bool>> extract_moves(array<array<GridCell, 3>, 3> grid,
                                             bool player_1) {
   vector<tuple<int, int, bool>> result;
@@ -202,6 +209,7 @@ vector<tuple<int, int, bool>> extract_moves(array<array<GridCell, 3>, 3> grid,
   }
   return result;
 }
+
 array<array<GridCell, 3>, 3> applyMove(array<array<GridCell, 3>, 3> grid,
                                        tuple<int, int, bool> action) {
   array<array<GridCell, 3>, 3> result = grid;
@@ -212,6 +220,7 @@ array<array<GridCell, 3>, 3> applyMove(array<array<GridCell, 3>, 3> grid,
   }
   return result;
 }
+
 bool gameEnded(array<array<GridCell, 3>, 3> grid) {
   int game_state = -2;
   game_state = checkWin(grid);
