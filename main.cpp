@@ -1,5 +1,5 @@
 #include "raylib.h"
-#include <algorithm>
+// #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdio>
@@ -68,7 +68,7 @@ bool checkDraw(array<array<GridCell, 3>, 3> grid) {
       }
     }
   }
-  printf("its a draw\n");
+
   return true;
 }
 
@@ -81,11 +81,11 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
           grid.at(i).at(1).state == grid.at(i).at(2).state &&
           grid.at(i).at(0).state != Empty) {
         if (grid.at(i).at(0).state == X) {
-          printf("X wins\n");
+
           return 1;
         }
         if (grid.at(i).at(0).state == O) {
-          printf("O wins\n");
+
           return -1;
         }
       }
@@ -94,11 +94,11 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
           grid.at(1).at(i).state == grid.at(2).at(i).state &&
           grid.at(0).at(i).state) {
         if (grid.at(0).at(i).state == X) {
-          printf("X wins\n");
+
           return 1;
         }
         if (grid.at(0).at(i).state == O) {
-          printf("O wins\n");
+
           return -1;
         }
       }
@@ -108,11 +108,11 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
         grid.at(1).at(1).state == grid.at(2).at(2).state &&
         grid.at(0).at(0).state) {
       if (grid.at(0).at(0).state == X) {
-        printf("X wins\n");
+
         return 1;
       }
       if (grid.at(0).at(0).state == O) {
-        printf("O wins\n");
+
         return -1;
       }
     }
@@ -121,11 +121,11 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
         grid.at(1).at(1).state == grid.at(2).at(0).state &&
         grid.at(0).at(2).state) {
       if (grid.at(0).at(2).state == X) {
-        printf("X wins\n");
+
         return 1;
       }
       if (grid.at(0).at(2).state == O) {
-        printf("O wins\n");
+
         return -1;
       }
     }
@@ -180,7 +180,7 @@ int min_max(array<array<GridCell, 3>, 3> state, bool player_1,
     for (auto move : move_list) {
       curent = min_max(applyMove(state, move), false, temp_action);
       if (curent > max_value) {
-        printf("this is happening max");
+
         max_value = curent;
         curent_action = move;
       }
@@ -195,7 +195,7 @@ int min_max(array<array<GridCell, 3>, 3> state, bool player_1,
     for (auto move : move_list) {
       curent = min_max(applyMove(state, move), true, temp_action);
       if (curent < min_value) {
-        printf("this is happening min");
+
         min_value = curent;
         curent_action = move;
       }
