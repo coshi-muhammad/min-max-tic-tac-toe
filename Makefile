@@ -2,5 +2,8 @@
 all:
 	g++ main.cpp -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 
+debug:
+	g++  -g main.cpp -o db.out -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
+
 run:
 	./a.out
