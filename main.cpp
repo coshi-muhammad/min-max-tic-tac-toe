@@ -1,4 +1,5 @@
 #include "raylib.h"
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdio>
@@ -138,7 +139,6 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
           grid.at(i).at(0).state != Empty) {
         game_won = true;
         if (grid.at(i).at(0).state == X) {
-          printf("first\n");
           printf("X wins\n");
           return 1;
         }
@@ -153,7 +153,6 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
           grid.at(0).at(i).state) {
         game_won = true;
         if (grid.at(0).at(i).state == X) {
-          printf("second\n");
           printf("X wins\n");
           return 1;
         }
@@ -169,7 +168,6 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
         grid.at(0).at(0).state) {
       game_won = true;
       if (grid.at(0).at(0).state == X) {
-        printf("third\n");
         printf("X wins\n");
         return 1;
       }
@@ -184,7 +182,6 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
         grid.at(0).at(2).state) {
       game_won = true;
       if (grid.at(0).at(2).state == X) {
-        printf("fourth\n");
         printf("X wins\n");
         return 1;
       }
@@ -197,8 +194,8 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
   return 0;
 }
 
-vector<tuple<int, int, bool>> extract_moves(array<array<GridCell, 3>, 3> grid,
-                                            bool player_1) {
+vector<tuple<int, int, bool>> extractMoves(array<array<GridCell, 3>, 3> grid,
+                                           bool player_1) {
   vector<tuple<int, int, bool>> result;
   for (size_t i = 0; i < 3; i++) {
     for (size_t j = 0; j < 3; j++) {
@@ -230,7 +227,43 @@ bool gameEnded(array<array<GridCell, 3>, 3> grid) {
   return false;
 }
 
-void min_max(array<array<GridCell, 3>, 3> state, size_t depth, bool player_1) {}
+int min_max(array<array<GridCell, 3>, 3> state, bool player_1,
+            tuple<int, int, bool> &action) {
+  if (gameEnded(state))
+    return checkWin(state);
+  tuple<int, int, bool> curent_action(-1, -1, false);
+  tuple<int, int, bool> temp_action(-1, -1, false);
+  if (player_1) {
+    auto move_list = extractMoves(state, player_1);
+    int curent = -2, max_value = -2;
+    for (auto move : move_list) {
+      curent = min_max(applyMove(state, move), false, temp_action);
+      if (curent > max_value) {
+        max_value = curent;
+        curent_action = move;
+      }
+    }
+    action = curent_action;
+    return max_value;
+  }
+
+  if (!player_1) {
+    auto move_list = extractMoves(state, player_1);
+    int curent = 2, min_value = 2;
+    for (auto move : move_list) {
+      curent = min_max(applyMove(state, move), true, temp_action);
+      min_value = min(min_value, curent);
+      if (curent < min_value) {
+        min_value = curent;
+        curent_action = move;
+      }
+    }
+
+    action = curent_action;
+    return min_value;
+  }
+  return -2;
+}
 int main() {
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
   InitWindow(WIDTH, HEIGHT, "min_max");
