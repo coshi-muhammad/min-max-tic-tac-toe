@@ -1,3 +1,5 @@
+#include "include/raylib.h"
+#include <cstdlib>
 #define CLAY_IMPLEMENTATION
 #include "include/clay.h"
 #include "include/clay_renderer_raylib.c"
@@ -288,43 +290,96 @@ void drawGrid() {
     }
   }
 }
-void menu() { printf("main menu"); }
-void mGame() {
+
+void menu(Font *font) {
+
+  Clay_BeginLayout();
+  CLAY({.id = CLAY_ID("constainer"),
+        .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)},
+                   .padding = {10, 10, 10, 10},
+                   .childGap = 16},
+        .backgroundColor{255, 0, 0, 255}}) {
+    CLAY({.id = CLAY_ID("text_box"),
+          .layout = {.sizing = {.width = CLAY_SIZING_FIT(),
+                                .height = CLAY_SIZING_FIXED(60)}}}) {
+      CLAY_TEXT(
+          {CLAY_STRING("just trying Clay out")},
+          CLAY_TEXT_CONFIG({.textColor = {0, 0, 255, 255}, .fontSize = 24}));
+    };
+  };
+  Clay_RenderCommandArray render_comands = Clay_EndLayout();
+  BeginDrawing();
+  ClearBackground(SKYBLUE);
+  Clay_Raylib_Render(render_comands, font);
+  EndDrawing();
+}
+
+void mGame(Font *font) {
+  Clay_BeginLayout();
+  Clay_RenderCommandArray render_comands = Clay_EndLayout();
   if (!gameEnded(grid)) {
     initUpdateCells(grid);
   }
   BeginDrawing();
   ClearBackground(SKYBLUE);
+  Clay_Raylib_Render(render_comands, font);
   drawGrid();
   EndDrawing();
 }
-void bGame() {
+
+void bGame(Font *font) {
+  Clay_BeginLayout();
+  Clay_RenderCommandArray render_comands = Clay_EndLayout();
   if (!gameEnded(grid)) {
     initUpdateCells(grid);
   }
   BeginDrawing();
   ClearBackground(SKYBLUE);
+  Clay_Raylib_Render(render_comands, font);
   drawGrid();
   EndDrawing();
 }
-void endScrean() { printf("game ended"); }
+
+void endScrean(Font *font) {
+  Clay_BeginLayout();
+  Clay_RenderCommandArray render_comands = Clay_EndLayout();
+  BeginDrawing();
+  ClearBackground(SKYBLUE);
+  Clay_Raylib_Render(render_comands, font);
+  EndDrawing();
+}
+
 int main() {
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
   InitWindow(WIDTH, HEIGHT, "min_max");
+  uint64_t clay_required_memory = Clay_MinMemorySize();
+  Clay_Arena clay_memory =
+      (Clay_Arena){.capacity = clay_required_memory,
+                   .memory = (char *)malloc(clay_required_memory)};
+  Clay_Initialize(clay_memory,
+                  (Clay_Dimensions){.width = (float)GetScreenWidth(),
+                                    .height = (float)GetScreenHeight()},
+                  {});
+  Font game_font = LoadFont("resourses/OpenSans-Regular.ttf");
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
+    Clay_SetLayoutDimensions((Clay_Dimensions){
+        .width = (float)GetScreenWidth(), .height = (float)GetScreenHeight()});
+    Vector2 mouse_pos = GetMousePosition();
+    Clay_SetPointerState((Clay_Vector2){.x = mouse_pos.x, .y = mouse_pos.y},
+                         IsMouseButtonPressed(MOUSE_BUTTON_LEFT));
     switch (current_sceen) {
     case Menu:
-      menu();
+      menu(&game_font);
       break;
     case M_Game:
-      mGame();
+      mGame(&game_font);
       break;
     case B_Game:
-      bGame();
+      bGame(&game_font);
       break;
     case End_Screan:
-      endScrean();
+      endScrean(&game_font);
       break;
     }
   }
