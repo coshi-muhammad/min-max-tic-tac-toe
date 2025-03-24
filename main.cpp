@@ -1,9 +1,10 @@
+#define CLAY_IMPLEMENTATION
+#include "include/clay.h"
+#include "include/clay_renderer_raylib.c"
 #include "raylib.h"
-// #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdio>
-// #include <iostream>
 #include <tuple>
 #include <vector>
 
@@ -12,9 +13,9 @@ const float WIDTH = 1280;
 const float HEIGHT = 1280;
 int player = 1;
 int bot_player = 2;
-bool bot_game = true;
 enum CellState { Empty, X, O };
-
+enum Sceen { Menu, M_Game, B_Game, End_Screan };
+Sceen current_sceen = Menu;
 class GridCell {
 public:
   GridCell() { state = Empty; };
@@ -132,7 +133,7 @@ int checkWin(array<array<GridCell, 3>, 3> grid) {
   } else {
     return 0;
   }
-  return -5;
+  return -2;
 }
 
 vector<tuple<int, int, bool>> extractMoves(array<array<GridCell, 3>, 3> grid,
@@ -213,8 +214,7 @@ void initUpdateCells(array<array<GridCell, 3>, 3> &grid) {
       (GetScreenWidth() < GetScreenHeight() ? GetScreenWidth() / 6
                                             : GetScreenHeight() / 6);
   float devider_w = 30;
-  float devider_h = cell_side_length * 3 + devider_w * 6;
-  if (bot_game) {
+  if (current_sceen == B_Game) {
     if (player != bot_player) {
       for (size_t i = 0; i < grid.size(); i++) {
         for (size_t j = 0; j < grid.at(i).size(); j++) {
@@ -261,7 +261,6 @@ void drawGrid() {
   float center_x = float(GetScreenWidth()) / 2;
   float center_y = float(GetScreenHeight()) / 2;
   float devider_w = 30;
-  float spacer = 10;
   float cell_side_length =
       (GetScreenWidth() < GetScreenHeight() ? GetScreenWidth() / 6
                                             : GetScreenHeight() / 6);
@@ -289,19 +288,45 @@ void drawGrid() {
     }
   }
 }
-
+void menu() { printf("main menu"); }
+void mGame() {
+  if (!gameEnded(grid)) {
+    initUpdateCells(grid);
+  }
+  BeginDrawing();
+  ClearBackground(SKYBLUE);
+  drawGrid();
+  EndDrawing();
+}
+void bGame() {
+  if (!gameEnded(grid)) {
+    initUpdateCells(grid);
+  }
+  BeginDrawing();
+  ClearBackground(SKYBLUE);
+  drawGrid();
+  EndDrawing();
+}
+void endScrean() { printf("game ended"); }
 int main() {
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
   InitWindow(WIDTH, HEIGHT, "min_max");
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
-    if (!gameEnded(grid)) {
-      initUpdateCells(grid);
+    switch (current_sceen) {
+    case Menu:
+      menu();
+      break;
+    case M_Game:
+      mGame();
+      break;
+    case B_Game:
+      bGame();
+      break;
+    case End_Screan:
+      endScrean();
+      break;
     }
-    BeginDrawing();
-    ClearBackground(SKYBLUE);
-    drawGrid();
-    EndDrawing();
   }
   return 0;
 }
