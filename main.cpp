@@ -1,5 +1,7 @@
 #include "include/raylib.h"
+#include <cstdint>
 #include <cstdlib>
+#include <stdio.h>
 #define CLAY_IMPLEMENTATION
 #include "include/clay.h"
 #include "include/clay_renderer_raylib.c"
@@ -18,6 +20,21 @@ int bot_player = 2;
 enum CellState { Empty, X, O };
 enum Sceen { Menu, M_Game, B_Game, End_Screan };
 Sceen current_sceen = Menu;
+bool manually_close = false;
+bool muted = false;
+struct GameAssets {
+  // font
+  Font font;
+  // textures
+  Texture2D volume;
+  Texture2D mute;
+  Texture2D exit;
+  // sound files
+  Sound background_music;
+  Sound sound_effect_1;
+  Sound sound_effect_2;
+  Sound sound_effect_3;
+};
 class GridCell {
 public:
   GridCell() { state = Empty; };
@@ -291,22 +308,144 @@ void drawGrid() {
   }
 }
 
-void menu(Font *font) {
+void handleClickMenu(Clay_ElementId elementId, Clay_PointerData pointerInfo,
+                     intptr_t userData) {
+  Sceen *sceen = (Sceen *)userData;
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    if (elementId.id == CLAY_ID("Multiplayer button").id) {
+      *sceen = M_Game;
+    }
+    if (elementId.id == CLAY_ID("Bot game button").id) {
+      *sceen = B_Game;
+    }
+    if (elementId.id == CLAY_ID("Exit button").id) {
+      manually_close = true;
+    }
+  }
+}
+void setSound(Clay_ElementId elementId, Clay_PointerData pointerInfo,
+              intptr_t userData) {
+  bool *muted = (bool *)userData;
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    *muted = !*muted;
+    printf("the sound state had changed");
+  }
+}
+void menu(Font *font, Texture2D *sound_on, Texture2D *sound_off) {
 
   Clay_BeginLayout();
-  CLAY({.id = CLAY_ID("constainer"),
+  CLAY({
+      .id = CLAY_ID("menu screan"),
+      .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)},
+                 .padding = CLAY_PADDING_ALL(15),
+                 .layoutDirection = CLAY_TOP_TO_BOTTOM},
+  }) {
+    CLAY({.id = CLAY_ID("sound button container"),
+          .layout = {
+              .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0)},
+              .padding = CLAY_PADDING_ALL(2),
+              .childGap = 10,
+              .childAlignment = {.x = CLAY_ALIGN_X_RIGHT},
+          }}) {
+      CLAY({.id = CLAY_ID("sound button"),
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_FIXED(100), CLAY_SIZING_FIXED(100)},
+                },
+            .image = {.imageData = muted ? sound_off : sound_on,
+                      .sourceDimensions = {60, 60}}}) {
+        Clay_OnHover(setSound, (intptr_t)&muted);
+      }
+    }
+    CLAY({
+        .id = CLAY_ID("menu body"),
         .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)},
-                   .padding = {10, 10, 10, 10},
-                   .childGap = 16},
-        .backgroundColor{255, 0, 0, 255}}) {
-    CLAY({.id = CLAY_ID("text_box"),
-          .layout = {.sizing = {.width = CLAY_SIZING_FIT(),
-                                .height = CLAY_SIZING_FIXED(60)}}}) {
-      CLAY_TEXT(
-          {CLAY_STRING("just trying Clay out")},
-          CLAY_TEXT_CONFIG({.textColor = {0, 0, 255, 255}, .fontSize = 24}));
-    };
-  };
+                   .padding = {CLAY_PADDING_ALL(10)},
+                   .childAlignment = {.x = CLAY_ALIGN_X_CENTER,
+                                      .y = CLAY_ALIGN_Y_CENTER}},
+    }) {
+      CLAY({
+          .id = CLAY_ID("menu panel"),
+          .layout =
+              {
+                  .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                  .padding = {30, 30, 20, 20},
+                  .childGap = 30,
+                  .layoutDirection = CLAY_TOP_TO_BOTTOM,
+              },
+          .backgroundColor = {102, 191, 255, 255},
+          .cornerRadius = CLAY_CORNER_RADIUS(10),
+          .border = {.color = {255, 255, 255, 255}, .width = {10, 10, 10, 10}},
+      }) {
+        CLAY({.id = CLAY_ID("text container"),
+              .layout = {
+                  .sizing = {CLAY_SIZING_FIT(300), CLAY_SIZING_FIT(100)}}}) {
+          CLAY_TEXT(
+              CLAY_STRING("Wellcome to tic tac toe\nplease chose a game mode"),
+              CLAY_TEXT_CONFIG({
+                  .textColor = {255, 255, 255, 255},
+                  .fontSize = 64,
+              }));
+        }
+        CLAY({
+            .id = CLAY_ID("Multiplayer button"),
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT(30)},
+                    .padding = CLAY_PADDING_ALL(10),
+                    .childAlignment = {.x = CLAY_ALIGN_X_CENTER},
+                },
+            .backgroundColor = {200, 200, 200, 255},
+            .cornerRadius = CLAY_CORNER_RADIUS(10),
+            .border = {.color = {255, 255, 255, 255}, .width = {5, 5, 5, 5}},
+        }) {
+          Clay_OnHover(handleClickMenu, (intptr_t)&current_sceen);
+          CLAY_TEXT(CLAY_STRING("Multi player"),
+                    CLAY_TEXT_CONFIG({
+                        .textColor = {255, 255, 255, 255},
+                        .fontSize = 64,
+                    }));
+        }
+        CLAY({
+            .id = CLAY_ID("Bot game button"),
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT(30)},
+                    .padding = CLAY_PADDING_ALL(10),
+                    .childAlignment = {.x = CLAY_ALIGN_X_CENTER},
+                },
+            .backgroundColor = {200, 200, 200, 255},
+            .cornerRadius = CLAY_CORNER_RADIUS(10),
+            .border = {.color = {255, 255, 255, 255}, .width = {5, 5, 5, 5}},
+        }) {
+          Clay_OnHover(handleClickMenu, (intptr_t)&current_sceen);
+          CLAY_TEXT(CLAY_STRING("Bot Game"),
+                    CLAY_TEXT_CONFIG({
+                        .textColor = {255, 255, 255, 255},
+                        .fontSize = 64,
+                    }));
+        }
+        CLAY({
+            .id = CLAY_ID("Exit button"),
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT(30)},
+                    .padding = CLAY_PADDING_ALL(10),
+                    .childAlignment = {.x = CLAY_ALIGN_X_CENTER},
+                },
+            .backgroundColor = {200, 200, 200, 255},
+            .cornerRadius = CLAY_CORNER_RADIUS(10),
+            .border = {.color = {255, 255, 255, 255}, .width = {5, 5, 5, 5}},
+        }) {
+          Clay_OnHover(handleClickMenu, (intptr_t)&current_sceen);
+          CLAY_TEXT(CLAY_STRING("EXIT"), CLAY_TEXT_CONFIG({
+                                             .textColor = {255, 255, 255, 255},
+                                             .fontSize = 64,
+                                         }));
+        }
+      }
+    }
+  }
   Clay_RenderCommandArray render_comands = Clay_EndLayout();
   BeginDrawing();
   ClearBackground(SKYBLUE);
@@ -314,8 +453,34 @@ void menu(Font *font) {
   EndDrawing();
 }
 
-void mGame(Font *font) {
+void mGame(Font *font, Texture2D *sound_on, Texture2D *sound_off) {
   Clay_BeginLayout();
+  CLAY({.id = CLAY_ID("multiplayer screan"),
+        .layout =
+            {
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT(30)},
+                .padding = CLAY_PADDING_ALL(15),
+            },
+        .backgroundColor = {255, 0, 0, 255}}) {
+
+    CLAY({.id = CLAY_ID("sound button container"),
+          .layout = {
+              .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0)},
+              .padding = CLAY_PADDING_ALL(2),
+              .childGap = 10,
+              .childAlignment = {.x = CLAY_ALIGN_X_RIGHT},
+          }}) {
+      CLAY({.id = CLAY_ID("sound button"),
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_FIXED(100), CLAY_SIZING_FIXED(100)},
+                },
+            .image = {.imageData = muted ? sound_off : sound_on,
+                      .sourceDimensions = {60, 60}}}) {
+        Clay_OnHover(setSound, (intptr_t)&muted);
+      }
+    }
+  }
   Clay_RenderCommandArray render_comands = Clay_EndLayout();
   if (!gameEnded(grid)) {
     initUpdateCells(grid);
@@ -360,9 +525,13 @@ int main() {
                   (Clay_Dimensions){.width = (float)GetScreenWidth(),
                                     .height = (float)GetScreenHeight()},
                   {});
-  Font game_font = LoadFont("resourses/OpenSans-Regular.ttf");
+  Font game_font = LoadFontEx("resourses/OpenSans-Semibold.ttf", 64, NULL, 0);
+  Texture2D volume = LoadTexture("resourses/volume.png");
+  Texture2D mute = LoadTexture("resourses/mute.png");
+  Clay_SetMeasureTextFunction(Raylib_MeasureText, &game_font);
+  // Clay_SetDebugModeEnabled(true);
   SetTargetFPS(60);
-  while (!WindowShouldClose()) {
+  while (!WindowShouldClose() && !manually_close) {
     Clay_SetLayoutDimensions((Clay_Dimensions){
         .width = (float)GetScreenWidth(), .height = (float)GetScreenHeight()});
     Vector2 mouse_pos = GetMousePosition();
@@ -370,10 +539,10 @@ int main() {
                          IsMouseButtonPressed(MOUSE_BUTTON_LEFT));
     switch (current_sceen) {
     case Menu:
-      menu(&game_font);
+      menu(&game_font, &volume, &mute);
       break;
     case M_Game:
-      mGame(&game_font);
+      mGame(&game_font, &volume, &mute);
       break;
     case B_Game:
       bGame(&game_font);
@@ -383,5 +552,6 @@ int main() {
       break;
     }
   }
+  CloseWindow();
   return 0;
 }
