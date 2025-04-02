@@ -1,27 +1,34 @@
 #include "include/raylib.h"
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
+#include <sstream>
 #include <stdio.h>
 #define CLAY_IMPLEMENTATION
 #include "include/clay.h"
 #include "include/clay_renderer_raylib.c"
-#include "raylib.h"
 #include <array>
 #include <cstddef>
 #include <cstdio>
+// #include <format>
 #include <tuple>
 #include <vector>
-
 using namespace std;
 const float WIDTH = 1280;
 const float HEIGHT = 1280;
 int player = 1;
-int bot_player = 2;
+int bot_player = 1;
+uint32_t player_1_score = 0;
+uint32_t player_2_score = 0;
+stringstream score;
+Clay_String score_clay;
 enum CellState { Empty, X, O };
-enum Sceen { Menu, M_Game, B_Game, End_Screan };
+enum Sceen { Menu, M_Game, B_Game, Choice_Screan, End_Screan };
 Sceen current_sceen = Menu;
+Sceen prev_sceen;
 bool manually_close = false;
 bool muted = false;
+int game_state;
 struct GameAssets {
   // font
   Font font;
@@ -34,10 +41,24 @@ struct GameAssets {
   Sound sound_effect_1;
   Sound sound_effect_2;
   Sound sound_effect_3;
+
+  void loadAssets() {
+    font = LoadFontEx("resourses/OpenSans-Semibold.ttf", 128, NULL, 0);
+    volume = LoadTexture("resourses/volume.png");
+    mute = LoadTexture("resourses/mute.png");
+    exit = LoadTexture("resourses/exit_button.png");
+  }
+  void unLoadAssets() {
+    UnloadFont(font);
+    UnloadTexture(volume);
+    UnloadTexture(mute);
+    UnloadTexture(exit);
+  }
 };
+GameAssets assets;
 class GridCell {
 public:
-  GridCell() { state = Empty; };
+  GridCell() { state = Empty; }
   void setPosition(int px, int py) {
     position_x = px;
     position_y = py;
@@ -93,63 +114,61 @@ bool checkDraw(array<array<GridCell, 3>, 3> grid) {
 }
 
 int checkWin(array<array<GridCell, 3>, 3> grid) {
-  if (!checkDraw(grid)) {
-
-    for (size_t i = 0; i < grid.size(); i++) {
-      // check horizontal lines
-      if (grid.at(i).at(0).state == grid.at(i).at(1).state &&
-          grid.at(i).at(1).state == grid.at(i).at(2).state &&
-          grid.at(i).at(0).state != Empty) {
-        if (grid.at(i).at(0).state == X) {
-
-          return 1;
-        }
-        if (grid.at(i).at(0).state == O) {
-
-          return -1;
-        }
-      }
-      // check vertical lines
-      if (grid.at(0).at(i).state == grid.at(1).at(i).state &&
-          grid.at(1).at(i).state == grid.at(2).at(i).state &&
-          grid.at(0).at(i).state) {
-        if (grid.at(0).at(i).state == X) {
-
-          return 1;
-        }
-        if (grid.at(0).at(i).state == O) {
-
-          return -1;
-        }
-      }
-    }
-    // check diagonals
-    if (grid.at(0).at(0).state == grid.at(1).at(1).state &&
-        grid.at(1).at(1).state == grid.at(2).at(2).state &&
-        grid.at(0).at(0).state) {
-      if (grid.at(0).at(0).state == X) {
+  for (size_t i = 0; i < grid.size(); i++) {
+    // check horizontal lines
+    if (grid.at(i).at(0).state == grid.at(i).at(1).state &&
+        grid.at(i).at(1).state == grid.at(i).at(2).state &&
+        grid.at(i).at(0).state != Empty) {
+      if (grid.at(i).at(0).state == X) {
 
         return 1;
       }
-      if (grid.at(0).at(0).state == O) {
+      if (grid.at(i).at(0).state == O) {
 
         return -1;
       }
     }
-
-    if (grid.at(0).at(2).state == grid.at(1).at(1).state &&
-        grid.at(1).at(1).state == grid.at(2).at(0).state &&
-        grid.at(0).at(2).state) {
-      if (grid.at(0).at(2).state == X) {
+    // check vertical lines
+    if (grid.at(0).at(i).state == grid.at(1).at(i).state &&
+        grid.at(1).at(i).state == grid.at(2).at(i).state &&
+        grid.at(0).at(i).state) {
+      if (grid.at(0).at(i).state == X) {
 
         return 1;
       }
-      if (grid.at(0).at(2).state == O) {
+      if (grid.at(0).at(i).state == O) {
 
         return -1;
       }
     }
-  } else {
+  }
+  // check diagonals
+  if (grid.at(0).at(0).state == grid.at(1).at(1).state &&
+      grid.at(1).at(1).state == grid.at(2).at(2).state &&
+      grid.at(0).at(0).state) {
+    if (grid.at(0).at(0).state == X) {
+
+      return 1;
+    }
+    if (grid.at(0).at(0).state == O) {
+
+      return -1;
+    }
+  }
+
+  if (grid.at(0).at(2).state == grid.at(1).at(1).state &&
+      grid.at(1).at(1).state == grid.at(2).at(0).state &&
+      grid.at(0).at(2).state) {
+    if (grid.at(0).at(2).state == X) {
+
+      return 1;
+    }
+    if (grid.at(0).at(2).state == O) {
+
+      return -1;
+    }
+  }
+  if (checkDraw(grid)) {
     return 0;
   }
   return -2;
@@ -237,20 +256,14 @@ void initUpdateCells(array<array<GridCell, 3>, 3> &grid) {
     if (player != bot_player) {
       for (size_t i = 0; i < grid.size(); i++) {
         for (size_t j = 0; j < grid.at(i).size(); j++) {
-          // set the correct position after scalling
-          grid.at(i).at(j).setPosition(
-              center_x - (cell_side_length * 3 / 2 + devider_w * 3 / 2) +
-                  j * (2 * devider_w + cell_side_length),
-              center_y - (cell_side_length * 3 / 2 + devider_w * 3 / 2) +
-                  i * (2 * devider_w + cell_side_length));
           // check for the collision on every frame
           grid.at(i).at(j).colisionDetect(player, GetMouseX(), GetMouseY(),
                                           cell_side_length);
         }
       }
     } else {
-      tuple<int, int, bool> bot_move(-1, -1, false);
-      min_max(grid, false, bot_move);
+      tuple<int, int, bool> bot_move(-1, -1, bot_player == 1);
+      min_max(grid, bot_player == 1, bot_move);
       grid = applyMove(grid, bot_move);
       if (player == 1) {
         player = 2;
@@ -261,12 +274,6 @@ void initUpdateCells(array<array<GridCell, 3>, 3> &grid) {
   } else {
     for (size_t i = 0; i < grid.size(); i++) {
       for (size_t j = 0; j < grid.at(i).size(); j++) {
-        // set the correct position after scalling
-        grid.at(i).at(j).setPosition(
-            center_x - (cell_side_length * 3 / 2 + devider_w * 3 / 2) +
-                j * (2 * devider_w + cell_side_length),
-            center_y - (cell_side_length * 3 / 2 + devider_w * 3 / 2) +
-                i * (2 * devider_w + cell_side_length));
         // check for the collision on every frame
         grid.at(i).at(j).colisionDetect(player, GetMouseX(), GetMouseY(),
                                         cell_side_length);
@@ -306,8 +313,30 @@ void drawGrid() {
       cell.draw(cell_side_length);
     }
   }
+  for (size_t i = 0; i < grid.size(); i++) {
+    for (size_t j = 0; j < grid.at(i).size(); j++) {
+      // set the correct position after scalling
+      grid.at(i).at(j).setPosition(
+          center_x - (cell_side_length * 3 / 2 + devider_w * 3 / 2) +
+              j * (2 * devider_w + cell_side_length),
+          center_y - (cell_side_length * 3 / 2 + devider_w * 3 / 2) +
+              i * (2 * devider_w + cell_side_length));
+    }
+  }
 }
-
+void resetGrid(array<array<GridCell, 3>, 3> &grid) {
+  for (auto &row : grid) {
+    for (GridCell &cell : row) {
+      cell.state = Empty;
+    }
+  }
+}
+void manuallyClose(Clay_ElementId elementId, Clay_PointerData pointerInfo,
+                   intptr_t userData) {
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    manually_close = true;
+  }
+}
 void handleClickMenu(Clay_ElementId elementId, Clay_PointerData pointerInfo,
                      intptr_t userData) {
   Sceen *sceen = (Sceen *)userData;
@@ -319,7 +348,7 @@ void handleClickMenu(Clay_ElementId elementId, Clay_PointerData pointerInfo,
       *sceen = B_Game;
     }
     if (elementId.id == CLAY_ID("Exit button").id) {
-      manually_close = true;
+      manuallyClose(CLAY_ID("Exit button"), pointerInfo, userData);
     }
   }
 }
@@ -328,10 +357,71 @@ void setSound(Clay_ElementId elementId, Clay_PointerData pointerInfo,
   bool *muted = (bool *)userData;
   if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
     *muted = !*muted;
-    printf("the sound state had changed");
   }
 }
-void menu(Font *font, Texture2D *sound_on, Texture2D *sound_off) {
+void restartGame(Clay_ElementId elementId, Clay_PointerData pointerInfo,
+                 intptr_t userData) {
+  Sceen *sceen = (Sceen *)userData;
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    *sceen = prev_sceen;
+    player = 1;
+  }
+}
+void topBar(GameAssets *assets) {
+  CLAY({.id = CLAY_ID("top bar"),
+        .layout = {.sizing = {.width = CLAY_SIZING_GROW()},
+                   .layoutDirection = CLAY_LEFT_TO_RIGHT}}) {
+
+    CLAY({.id = CLAY_ID("exit button container"),
+          .layout = {
+              .sizing = {CLAY_SIZING_FIT(0), CLAY_SIZING_FIT(0)},
+              .padding = CLAY_PADDING_ALL(2),
+              .childGap = 10,
+              .childAlignment = {.x = CLAY_ALIGN_X_LEFT},
+          }}) {
+      CLAY({.id = CLAY_ID("exit button"),
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_FIT(100), CLAY_SIZING_FIT(100)},
+                },
+            .image = {.imageData = &assets->exit,
+                      .sourceDimensions = {60, 60}}}) {
+        Clay_OnHover(manuallyClose, (intptr_t)&muted);
+      }
+    }
+    CLAY({.id = CLAY_ID("score container"),
+          .layout = {
+              .sizing = {CLAY_SIZING_GROW(300), CLAY_SIZING_FIT(50)},
+              .childAlignment = {.x = CLAY_ALIGN_X_CENTER,
+                                 .y = CLAY_ALIGN_Y_CENTER},
+          }}) {
+
+      CLAY_TEXT(score_clay, CLAY_TEXT_CONFIG({
+                                .textColor = {255, 255, 255, 255},
+                                .fontSize = 128,
+                            }));
+    }
+    CLAY({.id = CLAY_ID("sound button container"),
+          .layout = {
+              .sizing = {CLAY_SIZING_FIT(0), CLAY_SIZING_FIT(0)},
+              .padding = CLAY_PADDING_ALL(2),
+              .childGap = 10,
+              .childAlignment = {.x = CLAY_ALIGN_X_RIGHT},
+          }}) {
+      CLAY({.id = CLAY_ID("sound button"),
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_FIT(100), CLAY_SIZING_FIT(100)},
+                },
+            .image = {.imageData = muted ? &assets->mute : &assets->volume,
+                      .sourceDimensions = {60, 60}}}) {
+        Clay_OnHover(setSound, (intptr_t)&muted);
+      }
+    }
+  }
+}
+
+void menu(GameAssets *assets) {
 
   Clay_BeginLayout();
   CLAY({
@@ -340,23 +430,7 @@ void menu(Font *font, Texture2D *sound_on, Texture2D *sound_off) {
                  .padding = CLAY_PADDING_ALL(15),
                  .layoutDirection = CLAY_TOP_TO_BOTTOM},
   }) {
-    CLAY({.id = CLAY_ID("sound button container"),
-          .layout = {
-              .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0)},
-              .padding = CLAY_PADDING_ALL(2),
-              .childGap = 10,
-              .childAlignment = {.x = CLAY_ALIGN_X_RIGHT},
-          }}) {
-      CLAY({.id = CLAY_ID("sound button"),
-            .layout =
-                {
-                    .sizing = {CLAY_SIZING_FIXED(100), CLAY_SIZING_FIXED(100)},
-                },
-            .image = {.imageData = muted ? sound_off : sound_on,
-                      .sourceDimensions = {60, 60}}}) {
-        Clay_OnHover(setSound, (intptr_t)&muted);
-      }
-    }
+    topBar(assets);
     CLAY({
         .id = CLAY_ID("menu body"),
         .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)},
@@ -425,92 +499,146 @@ void menu(Font *font, Texture2D *sound_on, Texture2D *sound_off) {
                         .fontSize = 64,
                     }));
         }
-        CLAY({
-            .id = CLAY_ID("Exit button"),
-            .layout =
-                {
-                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT(30)},
-                    .padding = CLAY_PADDING_ALL(10),
-                    .childAlignment = {.x = CLAY_ALIGN_X_CENTER},
-                },
-            .backgroundColor = {200, 200, 200, 255},
-            .cornerRadius = CLAY_CORNER_RADIUS(10),
-            .border = {.color = {255, 255, 255, 255}, .width = {5, 5, 5, 5}},
-        }) {
-          Clay_OnHover(handleClickMenu, (intptr_t)&current_sceen);
-          CLAY_TEXT(CLAY_STRING("EXIT"), CLAY_TEXT_CONFIG({
-                                             .textColor = {255, 255, 255, 255},
-                                             .fontSize = 64,
-                                         }));
+      }
+    }
+  }
+  Clay_RenderCommandArray render_comands = Clay_EndLayout();
+  BeginDrawing();
+  ClearBackground(SKYBLUE);
+  Clay_Raylib_Render(render_comands, &assets->font);
+  EndDrawing();
+}
+
+void mGame(GameAssets *assets) {
+  prev_sceen = M_Game;
+  Clay_BeginLayout();
+  topBar(assets);
+  Clay_RenderCommandArray render_comands = Clay_EndLayout();
+  if (gameEnded(grid)) {
+    if (checkWin(grid) == 1) {
+      player_1_score++;
+      game_state = 1;
+    } else if (checkWin(grid) == -1) {
+      player_2_score++;
+      game_state = -1;
+    } else {
+      game_state = 0;
+    }
+    current_sceen = End_Screan;
+  }
+  initUpdateCells(grid);
+  BeginDrawing();
+  ClearBackground(SKYBLUE);
+  Clay_Raylib_Render(render_comands, &assets->font);
+  drawGrid();
+  EndDrawing();
+}
+
+void bGame(GameAssets *assets) {
+
+  prev_sceen = B_Game;
+  Clay_BeginLayout();
+  topBar(assets);
+  Clay_RenderCommandArray render_comands = Clay_EndLayout();
+  if (gameEnded(grid)) {
+    if (checkWin(grid) == 1) {
+      player_1_score++;
+      game_state = 1;
+    } else if (checkWin(grid) == -1) {
+      player_2_score++;
+      game_state = -1;
+    } else {
+      game_state = 0;
+    }
+    current_sceen = End_Screan;
+  }
+  initUpdateCells(grid);
+  BeginDrawing();
+  ClearBackground(SKYBLUE);
+  Clay_Raylib_Render(render_comands, &assets->font);
+  drawGrid();
+  EndDrawing();
+}
+void choiceScrean(GameAssets *assets) {
+  Clay_BeginLayout();
+  topBar(assets);
+
+  Clay_RenderCommandArray render_comands = Clay_EndLayout();
+  BeginDrawing();
+  ClearBackground(SKYBLUE);
+  Clay_Raylib_Render(render_comands, &assets->font);
+  EndDrawing();
+}
+void endScrean(GameAssets *assets, int game_state) {
+  resetGrid(grid);
+  Clay_BeginLayout();
+  CLAY({.id = CLAY_ID("end sceen"),
+        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                   .layoutDirection = CLAY_TOP_TO_BOTTOM}}) {
+    topBar(assets);
+    CLAY({.id = CLAY_ID("end body"),
+          .layout = {
+              .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+              .padding = {.top = 100},
+              .childGap = 100,
+              .childAlignment = {.x = CLAY_ALIGN_X_CENTER},
+              .layoutDirection = CLAY_TOP_TO_BOTTOM,
+
+          }}) {
+      CLAY({.id = CLAY_ID("end screan text container"),
+            .layout = {
+                .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                .padding = {.top = 30},
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+            }}) {
+        if (game_state == 1) {
+          CLAY_TEXT(CLAY_STRING("Player X wins \n do you want to play again"),
+                    CLAY_TEXT_CONFIG({
+                        .textColor = {255, 255, 255, 255},
+                        .fontSize = 64,
+                    }));
+        }
+        if (game_state == -1) {
+          CLAY_TEXT(CLAY_STRING("Player O wins \n do you want to play again"),
+                    CLAY_TEXT_CONFIG({
+                        .textColor = {255, 255, 255, 255},
+                        .fontSize = 64,
+                    }));
+        }
+        if (game_state == 0) {
+          CLAY_TEXT(
+              CLAY_STRING("The game was a draw \n do you want to play again"),
+              CLAY_TEXT_CONFIG({
+                  .textColor = {255, 255, 255, 255},
+                  .fontSize = 64,
+              }));
         }
       }
-    }
-  }
-  Clay_RenderCommandArray render_comands = Clay_EndLayout();
-  BeginDrawing();
-  ClearBackground(SKYBLUE);
-  Clay_Raylib_Render(render_comands, font);
-  EndDrawing();
-}
 
-void mGame(Font *font, Texture2D *sound_on, Texture2D *sound_off) {
-  Clay_BeginLayout();
-  CLAY({.id = CLAY_ID("multiplayer screan"),
-        .layout =
-            {
-                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT(30)},
-                .padding = CLAY_PADDING_ALL(15),
-            },
-        .backgroundColor = {255, 0, 0, 255}}) {
-
-    CLAY({.id = CLAY_ID("sound button container"),
-          .layout = {
-              .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0)},
-              .padding = CLAY_PADDING_ALL(2),
-              .childGap = 10,
-              .childAlignment = {.x = CLAY_ALIGN_X_RIGHT},
-          }}) {
-      CLAY({.id = CLAY_ID("sound button"),
-            .layout =
-                {
-                    .sizing = {CLAY_SIZING_FIXED(100), CLAY_SIZING_FIXED(100)},
-                },
-            .image = {.imageData = muted ? sound_off : sound_on,
-                      .sourceDimensions = {60, 60}}}) {
-        Clay_OnHover(setSound, (intptr_t)&muted);
+      CLAY({
+          .id = CLAY_ID("Restart button"),
+          .layout =
+              {
+                  .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT(30)},
+                  .padding = CLAY_PADDING_ALL(10),
+                  .childAlignment = {.x = CLAY_ALIGN_X_CENTER},
+              },
+          .backgroundColor = {200, 200, 200, 255},
+          .cornerRadius = CLAY_CORNER_RADIUS(10),
+          .border = {.color = {255, 255, 255, 255}, .width = {5, 5, 5, 5}},
+      }) {
+        Clay_OnHover(restartGame, (intptr_t)&current_sceen);
+        CLAY_TEXT(CLAY_STRING("Restart"), CLAY_TEXT_CONFIG({
+                                              .textColor = {255, 255, 255, 255},
+                                              .fontSize = 64,
+                                          }));
       }
     }
   }
   Clay_RenderCommandArray render_comands = Clay_EndLayout();
-  if (!gameEnded(grid)) {
-    initUpdateCells(grid);
-  }
   BeginDrawing();
   ClearBackground(SKYBLUE);
-  Clay_Raylib_Render(render_comands, font);
-  drawGrid();
-  EndDrawing();
-}
-
-void bGame(Font *font) {
-  Clay_BeginLayout();
-  Clay_RenderCommandArray render_comands = Clay_EndLayout();
-  if (!gameEnded(grid)) {
-    initUpdateCells(grid);
-  }
-  BeginDrawing();
-  ClearBackground(SKYBLUE);
-  Clay_Raylib_Render(render_comands, font);
-  drawGrid();
-  EndDrawing();
-}
-
-void endScrean(Font *font) {
-  Clay_BeginLayout();
-  Clay_RenderCommandArray render_comands = Clay_EndLayout();
-  BeginDrawing();
-  ClearBackground(SKYBLUE);
-  Clay_Raylib_Render(render_comands, font);
+  Clay_Raylib_Render(render_comands, &assets->font);
   EndDrawing();
 }
 
@@ -525,11 +653,9 @@ int main() {
                   (Clay_Dimensions){.width = (float)GetScreenWidth(),
                                     .height = (float)GetScreenHeight()},
                   {});
-  Font game_font = LoadFontEx("resourses/OpenSans-Semibold.ttf", 64, NULL, 0);
-  Texture2D volume = LoadTexture("resourses/volume.png");
-  Texture2D mute = LoadTexture("resourses/mute.png");
-  Clay_SetMeasureTextFunction(Raylib_MeasureText, &game_font);
-  // Clay_SetDebugModeEnabled(true);
+  assets.loadAssets();
+  Clay_SetMeasureTextFunction(Raylib_MeasureText, &assets.font);
+  Clay_SetDebugModeEnabled(true);
   SetTargetFPS(60);
   while (!WindowShouldClose() && !manually_close) {
     Clay_SetLayoutDimensions((Clay_Dimensions){
@@ -537,21 +663,31 @@ int main() {
     Vector2 mouse_pos = GetMousePosition();
     Clay_SetPointerState((Clay_Vector2){.x = mouse_pos.x, .y = mouse_pos.y},
                          IsMouseButtonPressed(MOUSE_BUTTON_LEFT));
+    score.str("");
+    score.clear();
+    score << " X: " << player_1_score << " O: " << player_2_score;
+    score_clay = {.isStaticallyAllocated = false,
+                  .length = static_cast<int32_t>(score.str().length()),
+                  .chars = score.str().c_str()};
     switch (current_sceen) {
     case Menu:
-      menu(&game_font, &volume, &mute);
+      menu(&assets);
       break;
     case M_Game:
-      mGame(&game_font, &volume, &mute);
+      mGame(&assets);
       break;
     case B_Game:
-      bGame(&game_font);
+      bGame(&assets);
+      break;
+    case Choice_Screan:
+      choiceScrean(&assets);
       break;
     case End_Screan:
-      endScrean(&game_font);
+      endScrean(&assets, game_state);
       break;
     }
   }
+  assets.unLoadAssets();
   CloseWindow();
   return 0;
 }
