@@ -37,22 +37,27 @@ struct GameAssets {
   Texture2D mute;
   Texture2D exit;
   // sound files
-  Sound background_music;
-  Sound sound_effect_1;
-  Sound sound_effect_2;
-  Sound sound_effect_3;
+  Music background_music;
+  Sound button_click;
+  Sound player_move;
 
   void loadAssets() {
     font = LoadFontEx("resourses/OpenSans-Semibold.ttf", 128, NULL, 0);
     volume = LoadTexture("resourses/volume.png");
     mute = LoadTexture("resourses/mute.png");
     exit = LoadTexture("resourses/exit_button.png");
+    background_music = LoadMusicStream("resourses/background_music.mp3");
+    button_click = LoadSound("resourses/background_music.mp3");
+    player_move = LoadSound("resourses/player_move.mp3");
   }
   void unLoadAssets() {
     UnloadFont(font);
     UnloadTexture(volume);
     UnloadTexture(mute);
     UnloadTexture(exit);
+    UnloadMusicStream(background_music);
+    UnloadSound(button_click);
+    UnloadSound(player_move);
   }
 };
 GameAssets assets;
@@ -83,10 +88,13 @@ public:
     }
   }
   void colisionDetect(int &player, int mouse_x, int mouse_y,
-                      float cell_side_length) {
+                      float cell_side_length, GameAssets assets) {
     if (mouse_x >= position_x && mouse_x <= position_x + cell_side_length &&
         mouse_y >= position_y && mouse_y <= position_y + cell_side_length &&
         IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && state == Empty) {
+      if (!muted) {
+        PlaySound(assets.player_move);
+      }
       if (player == 1) {
         state = X;
         player = 2;
@@ -188,11 +196,18 @@ vector<tuple<int, int, bool>> extractMoves(array<array<GridCell, 3>, 3> grid,
 }
 
 array<array<GridCell, 3>, 3> applyMove(array<array<GridCell, 3>, 3> grid,
-                                       tuple<int, int, bool> action) {
+                                       tuple<int, int, bool> action,
+                                       GameAssets assets) {
   array<array<GridCell, 3>, 3> result = grid;
   if (get<2>(action) == true) {
+    if (!muted) {
+      PlaySound(assets.player_move);
+    }
     result.at(get<0>(action)).at(get<1>(action)).state = X;
   } else {
+    if (!muted) {
+      PlaySound(assets.player_move);
+    }
     result.at(get<0>(action)).at(get<1>(action)).state = O;
   }
   return result;
@@ -208,7 +223,7 @@ bool gameEnded(array<array<GridCell, 3>, 3> grid) {
 }
 
 int min_max(array<array<GridCell, 3>, 3> state, bool player_1,
-            tuple<int, int, bool> &action) {
+            tuple<int, int, bool> &action, GameAssets assets) {
   if (gameEnded(state))
     return checkWin(state);
   tuple<int, int, bool> curent_action(-1, -1, false);
@@ -217,7 +232,8 @@ int min_max(array<array<GridCell, 3>, 3> state, bool player_1,
     auto move_list = extractMoves(state, player_1);
     int curent = -2, max_value = -2;
     for (auto move : move_list) {
-      curent = min_max(applyMove(state, move), false, temp_action);
+      curent =
+          min_max(applyMove(state, move, assets), false, temp_action, assets);
       if (curent > max_value) {
 
         max_value = curent;
@@ -232,7 +248,8 @@ int min_max(array<array<GridCell, 3>, 3> state, bool player_1,
     auto move_list = extractMoves(state, player_1);
     int curent = 2, min_value = 2;
     for (auto move : move_list) {
-      curent = min_max(applyMove(state, move), true, temp_action);
+      curent =
+          min_max(applyMove(state, move, assets), true, temp_action, assets);
       if (curent < min_value) {
 
         min_value = curent;
@@ -245,7 +262,7 @@ int min_max(array<array<GridCell, 3>, 3> state, bool player_1,
   }
   return -2;
 }
-void initUpdateCells(array<array<GridCell, 3>, 3> &grid) {
+void initUpdateCells(array<array<GridCell, 3>, 3> &grid, GameAssets assets) {
   float center_x = float(GetScreenWidth()) / 2;
   float center_y = float(GetScreenHeight()) / 2;
   float cell_side_length =
@@ -258,13 +275,13 @@ void initUpdateCells(array<array<GridCell, 3>, 3> &grid) {
         for (size_t j = 0; j < grid.at(i).size(); j++) {
           // check for the collision on every frame
           grid.at(i).at(j).colisionDetect(player, GetMouseX(), GetMouseY(),
-                                          cell_side_length);
+                                          cell_side_length, assets);
         }
       }
     } else {
       tuple<int, int, bool> bot_move(-1, -1, bot_player == 1);
-      min_max(grid, bot_player == 1, bot_move);
-      grid = applyMove(grid, bot_move);
+      min_max(grid, bot_player == 1, bot_move, assets);
+      grid = applyMove(grid, bot_move, assets);
       if (player == 1) {
         player = 2;
       } else if (player == 2) {
@@ -276,7 +293,7 @@ void initUpdateCells(array<array<GridCell, 3>, 3> &grid) {
       for (size_t j = 0; j < grid.at(i).size(); j++) {
         // check for the collision on every frame
         grid.at(i).at(j).colisionDetect(player, GetMouseX(), GetMouseY(),
-                                        cell_side_length);
+                                        cell_side_length, assets);
       }
     }
   }
@@ -345,7 +362,7 @@ void handleClickMenu(Clay_ElementId elementId, Clay_PointerData pointerInfo,
       *sceen = M_Game;
     }
     if (elementId.id == CLAY_ID("Bot game button").id) {
-      *sceen = B_Game;
+      *sceen = Choice_Screan;
     }
     if (elementId.id == CLAY_ID("Exit button").id) {
       manuallyClose(CLAY_ID("Exit button"), pointerInfo, userData);
@@ -365,6 +382,30 @@ void restartGame(Clay_ElementId elementId, Clay_PointerData pointerInfo,
   if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
     *sceen = prev_sceen;
     player = 1;
+  }
+}
+void returnToMenu(Clay_ElementId elementId, Clay_PointerData pointerInfo,
+                  intptr_t userData) {
+  Sceen *sceen = (Sceen *)userData;
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+    *sceen = Menu;
+    player_1_score = 0;
+    player_2_score = 0;
+    player = 1;
+  }
+}
+void chosePlayer(Clay_ElementId elementId, Clay_PointerData pointerInfo,
+                 intptr_t userData) {
+  Sceen *sceen = (Sceen *)userData;
+  if (pointerInfo.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+
+    if (elementId.id == CLAY_ID("the X button").id) {
+      bot_player = 2;
+      *sceen = B_Game;
+    } else if (elementId.id == CLAY_ID("the O button").id) {
+      bot_player = 1;
+      *sceen = B_Game;
+    }
   }
 }
 void topBar(GameAssets *assets) {
@@ -526,7 +567,7 @@ void mGame(GameAssets *assets) {
     }
     current_sceen = End_Screan;
   }
-  initUpdateCells(grid);
+  initUpdateCells(grid, *assets);
   BeginDrawing();
   ClearBackground(SKYBLUE);
   Clay_Raylib_Render(render_comands, &assets->font);
@@ -552,7 +593,7 @@ void bGame(GameAssets *assets) {
     }
     current_sceen = End_Screan;
   }
-  initUpdateCells(grid);
+  initUpdateCells(grid, *assets);
   BeginDrawing();
   ClearBackground(SKYBLUE);
   Clay_Raylib_Render(render_comands, &assets->font);
@@ -561,8 +602,68 @@ void bGame(GameAssets *assets) {
 }
 void choiceScrean(GameAssets *assets) {
   Clay_BeginLayout();
-  topBar(assets);
-
+  CLAY({
+      .id = CLAY_ID("choice screan"),
+      .layout =
+          {
+              .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+              .childAlignment = {.x = CLAY_ALIGN_X_CENTER},
+              .layoutDirection = CLAY_TOP_TO_BOTTOM,
+          },
+  }) {
+    topBar(assets);
+    CLAY({.id = CLAY_ID("buttons container"),
+          .layout = {
+              .sizing =
+                  {
+                      CLAY_SIZING_FIT(30),
+                      CLAY_SIZING_GROW(),
+                  },
+              .padding = CLAY_PADDING_ALL(10),
+              .childGap = 100,
+              .childAlignment = {.y = CLAY_ALIGN_Y_CENTER},
+              .layoutDirection = CLAY_LEFT_TO_RIGHT,
+          }}) {
+      CLAY({
+          .id = CLAY_ID("the X button"),
+          .layout =
+              {
+                  .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT(30)},
+                  .padding = CLAY_PADDING_ALL(10),
+                  .childAlignment = {.x = CLAY_ALIGN_X_CENTER},
+              },
+          .backgroundColor = {200, 200, 200, 255},
+          .cornerRadius = CLAY_CORNER_RADIUS(10),
+          .border = {.color = {255, 255, 255, 255}, .width = {5, 5, 5, 5}},
+      }) {
+        Clay_OnHover(chosePlayer, (intptr_t)&current_sceen);
+        CLAY_TEXT(CLAY_STRING("play as X"),
+                  CLAY_TEXT_CONFIG({
+                      .textColor = {255, 255, 255, 255},
+                      .fontSize = 64,
+                  }));
+      }
+      CLAY({
+          .id = CLAY_ID("the O button"),
+          .layout =
+              {
+                  .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT(30)},
+                  .padding = CLAY_PADDING_ALL(10),
+                  .childAlignment = {.x = CLAY_ALIGN_X_CENTER},
+              },
+          .backgroundColor = {200, 200, 200, 255},
+          .cornerRadius = CLAY_CORNER_RADIUS(10),
+          .border = {.color = {255, 255, 255, 255}, .width = {5, 5, 5, 5}},
+      }) {
+        Clay_OnHover(chosePlayer, (intptr_t)&current_sceen);
+        CLAY_TEXT(CLAY_STRING("play as O"),
+                  CLAY_TEXT_CONFIG({
+                      .textColor = {255, 255, 255, 255},
+                      .fontSize = 64,
+                  }));
+      }
+    }
+  }
   Clay_RenderCommandArray render_comands = Clay_EndLayout();
   BeginDrawing();
   ClearBackground(SKYBLUE);
@@ -633,6 +734,25 @@ void endScrean(GameAssets *assets, int game_state) {
                                               .fontSize = 64,
                                           }));
       }
+      CLAY({
+          .id = CLAY_ID("menu button"),
+          .layout =
+              {
+                  .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT(30)},
+                  .padding = CLAY_PADDING_ALL(10),
+                  .childAlignment = {.x = CLAY_ALIGN_X_CENTER},
+              },
+          .backgroundColor = {200, 200, 200, 255},
+          .cornerRadius = CLAY_CORNER_RADIUS(10),
+          .border = {.color = {255, 255, 255, 255}, .width = {5, 5, 5, 5}},
+      }) {
+        Clay_OnHover(returnToMenu, (intptr_t)&current_sceen);
+        CLAY_TEXT(CLAY_STRING("main menu"),
+                  CLAY_TEXT_CONFIG({
+                      .textColor = {255, 255, 255, 255},
+                      .fontSize = 64,
+                  }));
+      }
     }
   }
   Clay_RenderCommandArray render_comands = Clay_EndLayout();
@@ -645,6 +765,7 @@ void endScrean(GameAssets *assets, int game_state) {
 int main() {
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
   InitWindow(WIDTH, HEIGHT, "min_max");
+  InitAudioDevice();
   uint64_t clay_required_memory = Clay_MinMemorySize();
   Clay_Arena clay_memory =
       (Clay_Arena){.capacity = clay_required_memory,
@@ -655,9 +776,13 @@ int main() {
                   {});
   assets.loadAssets();
   Clay_SetMeasureTextFunction(Raylib_MeasureText, &assets.font);
-  Clay_SetDebugModeEnabled(true);
+  // Clay_SetDebugModeEnabled(true);
   SetTargetFPS(60);
+  PlayMusicStream(assets.background_music);
   while (!WindowShouldClose() && !manually_close) {
+    if (!muted) {
+      UpdateMusicStream(assets.background_music);
+    }
     Clay_SetLayoutDimensions((Clay_Dimensions){
         .width = (float)GetScreenWidth(), .height = (float)GetScreenHeight()});
     Vector2 mouse_pos = GetMousePosition();
@@ -689,5 +814,6 @@ int main() {
   }
   assets.unLoadAssets();
   CloseWindow();
+  CloseAudioDevice();
   return 0;
 }
