@@ -17,8 +17,8 @@ Make sure you have the following installed:
 clone the repo using this following comand 
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_PROJECT_NAME.git
-cd YOUR_PROJECT_NAME
+git clone https://github.com/coshi-muhammad/min-max-tic-tac-toe.git
+cd min-max-tic-tac-toe
 ```
 and then to build it just run make 
 ```bash
